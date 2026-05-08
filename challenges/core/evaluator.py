@@ -2,31 +2,38 @@ import os
 import time
 import ctypes
 import torch
+import subprocess
 
 class Evaluate:
     @staticmethod
     def eval_cuda(ch):
         # 1. Compile a fresh uniquely named library
         so_filename = f'solution_func_{int(time.time())}.so'
-        os.system(f'nvcc -shared -Xcompiler -fPIC -O3 solution.cu -o {so_filename}')
-        lib = ctypes.CDLL(f'./{so_filename}')
+        cmd = f'nvcc -shared -Xcompiler -fPIC -O3 solution.cu -o {so_filename}'
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         
+        if result.returncode != 0:
+            error_msg = f"CUDA compilation failed. Please check 'solution.cu' for errors.\n\nCompiler Output:\n{result.stderr}\n{result.stdout}"
+            raise RuntimeError(error_msg)
+            
+        lib = ctypes.CDLL(f'./{so_filename}')
+
         # 2. Extract signature and set argtypes
         signature = ch.get_solve_signature()
         lib.solve.argtypes = [arg_info[0] for arg_info in signature.values()]
-        
+
         Evaluate._run_tests(ch, signature, lambda kwargs: lib.solve(*Evaluate._build_cuda_args(kwargs, signature)))
 
     @staticmethod
     def eval_python(ch):
         import importlib.util
         import sys
-        
+
         spec = importlib.util.spec_from_file_location("solution", "solution.py")
         solution = importlib.util.module_from_spec(spec)
         sys.modules["solution"] = solution
         spec.loader.exec_module(solution)
-        
+
         signature = ch.get_solve_signature()
         Evaluate._run_tests(ch, signature, lambda kwargs: Evaluate._run_python(solution, kwargs))
 
@@ -58,19 +65,19 @@ class Evaluate:
         print("=== Running Functional Tests ===")
         functional_tests = ch.generate_functional_test()
         all_passed = True
-        
+
         for i, test in enumerate(functional_tests):
             ref_kwargs = {k: (v.clone() if isinstance(v, torch.Tensor) else v) for k, v in test.items()}
             test_kwargs = {k: (v.clone() if isinstance(v, torch.Tensor) else v) for k, v in test.items()}
-            
+
             # Run Reference
             ch.reference_impl(**ref_kwargs)
-            
+
             # Run implementation
             run_fn(test_kwargs)
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
-            
+
             # Verify outputs
             match = True
             for k, (_, dir_type) in signature.items():
@@ -79,15 +86,15 @@ class Evaluate:
                         match = False
                         print(f"❌ Test {i+1}/{len(functional_tests)} Failed on output '{k}'")
                         break
-            
+
             if match:
                 print(f"✅ Test {i+1}/{len(functional_tests)} Passed")
             else:
                 all_passed = False
                 break
-                
+
         if all_passed:
-            print("\\n🎉 All functional tests passed!")
+            print("\n🎉 All functional tests passed!")
             return True
         else:
             return False
