@@ -71,10 +71,16 @@ def generate_notebook(challenge_dir, output_dir):
                     "source": [header_text]
                 })
                 
-                # Default output filenames
-                out_filename = "solution.cu" if ext == "cu" else f"solution.{ext}"
-                if out_filename.endswith(".py"):
-                    out_filename = "solution.py"
+                # Output filenames based on language
+                if ext == "cu":
+                    out_filename = "solution.cu"
+                elif ext == "mojo":
+                    out_filename = "solution.mojo"
+                elif ext.endswith(".py"):
+                    prefix = ext.replace(".py", "")
+                    out_filename = f"solution_{prefix}.py"
+                else:
+                    out_filename = f"solution_{ext}"
                     
                 with open(os.path.join(starter_dir, starter_file), 'r', encoding='utf-8') as f:
                     starter_content = f.read()
@@ -141,7 +147,7 @@ ch = Challenge()"""
             "if EVAL_LANG == 'cuda':\n",
             "    Evaluate.eval_cuda(ch)\n",
             "elif EVAL_LANG in ['pytorch', 'triton', 'jax', 'cute']:\n",
-            "    Evaluate.eval_python(ch)\n",
+            "    Evaluate.eval_python(ch, EVAL_LANG)\n",
             "elif EVAL_LANG == 'mojo':\n",
             "    Evaluate.eval_mojo(ch)\n",
             "else:\n",

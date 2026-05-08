@@ -25,11 +25,12 @@ class Evaluate:
         Evaluate._run_tests(ch, signature, lambda kwargs: lib.solve(*Evaluate._build_cuda_args(kwargs, signature)))
 
     @staticmethod
-    def eval_python(ch):
+    def eval_python(ch, eval_lang="pytorch"):
         import importlib.util
         import sys
 
-        spec = importlib.util.spec_from_file_location("solution", "solution.py")
+        filename = f"solution_{eval_lang}.py"
+        spec = importlib.util.spec_from_file_location("solution", filename)
         solution = importlib.util.module_from_spec(spec)
         sys.modules["solution"] = solution
         spec.loader.exec_module(solution)
